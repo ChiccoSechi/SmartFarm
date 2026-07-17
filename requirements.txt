@@ -1,0 +1,2 @@
+# The simulator uses only the stdlib; paho-mqtt is needed by publish_to_mqtt(), 1.6.x for the stable Client(client_id=...) API.
+paho-mqtt>=1.6,<2.0   # MQTT client for Mosquitto

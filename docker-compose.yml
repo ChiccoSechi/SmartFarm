@@ -1,0 +1,171 @@
+# Full pipeline (up -d --build): sensor-simulator, mosquitto, telegraf, influxdb
+# (realtime + alerts) + mongodb (history), grafana. Services reach each other by name on
+# farm-net. Credentials in cleartext (prototype).
+
+# Dedicated network: isolated bridge, services reachable by name.
+networks:
+  farm-net:
+    driver: bridge
+
+services:
+
+  # Simulator/producer. MQTT_* are read by publish_to_mqtt(); starts after the broker.
+  sensor-simulator:
+    build: .
+    container_name: farm-sensor-simulator
+    networks:
+      - farm-net
+    command: ["--interval", "1", "--csv-path", "data/sensor_data.csv"]
+    volumes:
+      - ./data:/app/data
+    environment:
+      MQTT_HOST: mosquitto
+      MQTT_PORT: "1883"
+    depends_on:
+      mosquitto:
+        condition: service_healthy   # wait for a healthy broker, not just a started one
+    restart: on-failure
+
+  # MQTT broker (Mosquitto, not Kafka).
+  mosquitto:
+    image: eclipse-mosquitto:2
+    container_name: farm-mosquitto
+    networks:
+      - farm-net
+    ports:
+      - "1883:1883"          # for debug only (mosquitto_sub)
+    volumes:
+      - ./mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+      - mosquitto-data:/mosquitto/data   # persistent queue/sessions
+    # healthy if it can read a message from the internal $SYS topic ($$ escapes compose)
+    healthcheck:
+      test: ["CMD-SHELL", "mosquitto_sub -h localhost -t '$$SYS/#' -C 1 -W 3 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  # Broker to DB bridge (the DBs do not consume MQTT). Config in telegraf/telegraf.conf.
+  telegraf:
+    image: telegraf:1.30
+    container_name: farm-telegraf
+    networks:
+      - farm-net
+    volumes:
+      - ./telegraf/telegraf.conf:/etc/telegraf/telegraf.conf:ro
+    # starts only when broker and DBs are healthy (avoids the startup write race)
+    depends_on:
+      mosquitto:
+        condition: service_healthy
+      influxdb:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+    restart: on-failure
+
+  # Realtime time-series + alerts (Flux tasks). Auto setup via DOCKER_INFLUXDB_INIT_*.
+  influxdb:
+    image: influxdb:2.7
+    container_name: farm-influxdb
+    networks:
+      - farm-net
+    ports:
+      - "8086:8086"          # UI: http://localhost:8086
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: admin
+      DOCKER_INFLUXDB_INIT_PASSWORD: agridata2026
+      DOCKER_INFLUXDB_INIT_ORG: agridata
+      DOCKER_INFLUXDB_INIT_BUCKET: realtime
+      DOCKER_INFLUXDB_INIT_RETENTION: 7d   # short realtime retention; history lives in MongoDB
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: agridata-admin-token-2026   # same token in telegraf/grafana
+    volumes:
+      - influxdb-data:/var/lib/influxdb2
+      - ./influxdb/init:/docker-entrypoint-initdb.d:ro   # first start only: alerts bucket + tasks
+      - ./influxdb/tasks:/etc/influxdb-tasks:ro
+    # wide start_period: the first start also runs the setup
+    healthcheck:
+      test: ["CMD", "influx", "ping"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+
+  # Permanent aggregated history (no TTL), fed by Telegraf.
+  mongodb:
+    image: mongo:7
+    container_name: farm-mongodb
+    networks:
+      - farm-net
+    ports:
+      - "27018:27017"        # host 27018 to container 27017: avoids a clash with a local MongoDB (Compass: localhost:27018)
+    volumes:
+      - mongodb-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+      start_period: 20s
+
+  # Dashboards: data source and dashboards provisioned from ./grafana/provisioning.
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: farm-grafana
+    networks:
+      - farm-net
+    ports:
+      - "3000:3000"          # UI: http://localhost:3000
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: agridata2026
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      influxdb:
+        condition: service_healthy
+    restart: on-failure
+
+  # Alert webhook: notification endpoint (HTTP POST from the InfluxDB task); displays alerts.
+  alert-webhook:
+    build: ./webhook
+    container_name: farm-alert-webhook
+    networks:
+      - farm-net
+    ports:
+      - "5001:5000"          # demo only: GET /health
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    # health via stdlib (no curl in the slim image)
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: on-failure
+
+  # Alert consumer: reads from the InfluxDB "alerts" bucket and writes to MongoDB.
+  # Decouples notification (webhook) from persistence (consumer), allowing more endpoints.
+  # Idempotent upsert on the natural key prevents duplicates on restart.
+  alert-consumer:
+    build: ./consumers
+    container_name: farm-alert-consumer
+    networks:
+      - farm-net
+    depends_on:
+      influxdb:
+        condition: service_healthy
+      mongodb:
+        condition: service_healthy
+    # no exposed port: internal worker
+    restart: on-failure
+
+# Named volumes: data survives "down"; "down -v" wipes everything.
+volumes:
+  mosquitto-data:
+  influxdb-data:
+  mongodb-data:
+  grafana-data:
