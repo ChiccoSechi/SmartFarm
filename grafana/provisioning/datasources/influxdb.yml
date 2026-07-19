@@ -1,0 +1,15 @@
+apiVersion: 1
+
+datasources:
+  - name: InfluxDB-Farm
+    uid: influxdb-farm
+    type: influxdb
+    access: proxy
+    url: http://influxdb:8086
+    isDefault: true
+    jsonData:
+      version: Flux
+      organization: agridata
+      defaultBucket: realtime
+    secureJsonData:
+      token: agridata-admin-token-2026

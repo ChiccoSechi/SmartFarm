@@ -1,0 +1,462 @@
+{
+  "annotations": {
+    "list": [
+      {
+        "builtIn": 1,
+        "datasource": {
+          "type": "grafana",
+          "uid": "-- Grafana --"
+        },
+        "enable": true,
+        "hide": true,
+        "iconColor": "rgba(0, 211, 255, 1)",
+        "name": "Annotations & Alerts",
+        "type": "dashboard"
+      }
+    ]
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [
+    {
+      "asDropdown": true,
+      "icon": "external link",
+      "includeVars": false,
+      "keepTime": true,
+      "tags": [
+        "smartfarm"
+      ],
+      "targetBlank": false,
+      "title": "Go to zone / overview",
+      "tooltip": "",
+      "type": "dashboards",
+      "url": ""
+    }
+  ],
+  "panels": [
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-farm"
+      },
+      "description": "Smart Farm environmental nodes on a satellite map (Arborea, OR). The displayed measure is chosen with the 'Sensor / measure' menu; nodes are fixed color dots (identical to each other). Exact value in the popup and in the table.",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "fixed",
+            "fixedColor": "dark-green"
+          },
+          "custom": {
+            "hideFrom": {
+              "legend": false,
+              "tooltip": false,
+              "viz": false
+            }
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          },
+          "decimals": 1
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "value"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "${field:text}"
+              },
+              {
+                "id": "links",
+                "value": [
+                  {
+                    "title": "Open Zone ${__data.fields.zone} dashboard",
+                    "url": "/d/${__data.fields.dash}?${__url_time_range}",
+                    "targetBlank": false
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "latitude"
+            },
+            "properties": [
+              {
+                "id": "custom.hideFrom",
+                "value": {
+                  "legend": true,
+                  "tooltip": true,
+                  "viz": false
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "longitude"
+            },
+            "properties": [
+              {
+                "id": "custom.hideFrom",
+                "value": {
+                  "legend": true,
+                  "tooltip": true,
+                  "viz": false
+                }
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "dash"
+            },
+            "properties": [
+              {
+                "id": "custom.hideFrom",
+                "value": {
+                  "legend": true,
+                  "tooltip": true,
+                  "viz": false
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 16,
+        "w": 18,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {
+        "basemap": {
+          "type": "esri-xyz",
+          "name": "Satellite (ArcGIS World Imagery)",
+          "config": {
+            "server": "world-imagery"
+          }
+        },
+        "controls": {
+          "mouseWheelZoom": true,
+          "showAttribution": true,
+          "showDebug": false,
+          "showMeasure": false,
+          "showScale": false,
+          "showZoom": true
+        },
+        "layers": [
+          {
+            "type": "markers",
+            "name": "Environmental nodes",
+            "location": {
+              "mode": "coords",
+              "latitude": "latitude",
+              "longitude": "longitude"
+            },
+            "config": {
+              "showLegend": false,
+              "style": {
+                "color": {
+                  "fixed": "dark-green"
+                },
+                "opacity": 0.9,
+                "rotation": {
+                  "fixed": 0,
+                  "max": 360,
+                  "min": -360,
+                  "mode": "mod"
+                },
+                "size": {
+                  "fixed": 15,
+                  "max": 15,
+                  "min": 5
+                },
+                "symbol": {
+                  "fixed": "img/icons/marker/circle.svg",
+                  "mode": "fixed"
+                },
+                "symbolAlign": {
+                  "horizontal": "center",
+                  "vertical": "center"
+                },
+                "text": {
+                  "field": "node",
+                  "fixed": "",
+                  "mode": "field"
+                },
+                "textConfig": {
+                  "fontSize": 12,
+                  "offsetX": 0,
+                  "offsetY": -18,
+                  "textAlign": "center",
+                  "textBaseline": "middle"
+                }
+              }
+            },
+            "tooltip": true
+          }
+        ],
+        "tooltip": {
+          "mode": "details"
+        },
+        "view": {
+          "allLayers": true,
+          "id": "coords",
+          "lat": 39.77423,
+          "lon": 8.59167,
+          "zoom": 14
+        }
+      },
+      "pluginVersion": "11.2.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-farm"
+          },
+          "query": "from(bucket: \"realtime\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._field == \"${field}\")\n  |> filter(fn: (r) => exists r.zone)\n  |> group(columns: [\"zone\"])\n  |> last()\n  |> group()\n  |> keep(columns: [\"_value\", \"zone\"])\n  |> map(fn: (r) => ({\n       zone: r.zone,\n       node: \"Node \" + r.zone,\n       dash: if r.zone == \"A\" then \"smartfarm-zone-a\" else if r.zone == \"B\" then \"smartfarm-zone-b\" else \"smartfarm-zone-c\",\n       value: r._value,\n       latitude: if r.zone == \"A\" then 39.7745 else if r.zone == \"B\" then 39.77 else 39.7782,\n       longitude: if r.zone == \"A\" then 8.597 else if r.zone == \"B\" then 8.5875 else 8.5905\n     }))",
+          "refId": "A"
+        }
+      ],
+      "title": "Environmental nodes (${field:text}), Arborea (OR), Sardinia",
+      "type": "geomap"
+    },
+    {
+      "datasource": {
+        "type": "influxdb",
+        "uid": "influxdb-farm"
+      },
+      "description": "Last value of the selected measure for each node (no coordinates).",
+      "fieldConfig": {
+        "defaults": {
+          "color": {
+            "mode": "thresholds"
+          },
+          "custom": {
+            "align": "auto",
+            "cellOptions": {
+              "type": "auto"
+            },
+            "inspect": false
+          },
+          "mappings": [],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              {
+                "color": "text",
+                "value": null
+              }
+            ]
+          }
+        },
+        "overrides": [
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "node"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Node"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "zone"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "Zone"
+              }
+            ]
+          },
+          {
+            "matcher": {
+              "id": "byName",
+              "options": "value"
+            },
+            "properties": [
+              {
+                "id": "displayName",
+                "value": "${field:text}"
+              },
+              {
+                "id": "decimals",
+                "value": 2
+              }
+            ]
+          }
+        ]
+      },
+      "gridPos": {
+        "h": 16,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "id": 2,
+      "options": {
+        "showHeader": true,
+        "cellHeight": "sm",
+        "footer": {
+          "show": false,
+          "reducer": [
+            "sum"
+          ],
+          "countRows": false,
+          "fields": ""
+        }
+      },
+      "pluginVersion": "11.2.0",
+      "targets": [
+        {
+          "datasource": {
+            "type": "influxdb",
+            "uid": "influxdb-farm"
+          },
+          "query": "from(bucket: \"realtime\")\n  |> range(start: v.timeRangeStart, stop: v.timeRangeStop)\n  |> filter(fn: (r) => r._field == \"${field}\")\n  |> filter(fn: (r) => exists r.zone)\n  |> group(columns: [\"zone\"])\n  |> last()\n  |> group()\n  |> keep(columns: [\"_value\", \"zone\"])\n  |> map(fn: (r) => ({\n       zone: r.zone,\n       node: \"Node \" + r.zone,\n       value: r._value\n     }))\n  |> sort(columns: [\"zone\"])",
+          "refId": "A"
+        }
+      ],
+      "title": "Nodes: ${field:text}",
+      "type": "table",
+      "transformations": [
+        {
+          "id": "organize",
+          "options": {
+            "excludeByName": {
+              "zone": true
+            },
+            "indexByName": {
+              "node": 0,
+              "value": 1
+            },
+            "renameByName": {}
+          }
+        }
+      ]
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "tags": [
+    "smartfarm",
+    "map"
+  ],
+  "templating": {
+    "list": [
+      {
+        "name": "field",
+        "label": "Sensor / measure",
+        "type": "custom",
+        "description": "Chooses which environmental measure colors and fills the nodes.",
+        "query": "Soil moisture (%) : soil_moisture_pct, Air temperature (°C) : temperature_c, Air humidity (%) : humidity_pct, CO₂ (ppm) : co2_ppm, PM2.5 (µg/m³) : pm25_ugm3, PM10 (µg/m³) : pm10_ugm3, Soil pH : ph, EC conductivity (dS/m) : ec_dsm, Nitrogen N (mg/kg) : nitrogen_mgkg, Phosphorus P (mg/kg) : phosphorus_mgkg, Potassium K (mg/kg) : potassium_mgkg, Soil temperature (°C) : soil_temperature_c",
+        "options": [
+          {
+            "text": "Soil moisture (%)",
+            "value": "soil_moisture_pct",
+            "selected": true
+          },
+          {
+            "text": "Air temperature (°C)",
+            "value": "temperature_c",
+            "selected": false
+          },
+          {
+            "text": "Air humidity (%)",
+            "value": "humidity_pct",
+            "selected": false
+          },
+          {
+            "text": "CO₂ (ppm)",
+            "value": "co2_ppm",
+            "selected": false
+          },
+          {
+            "text": "PM2.5 (µg/m³)",
+            "value": "pm25_ugm3",
+            "selected": false
+          },
+          {
+            "text": "PM10 (µg/m³)",
+            "value": "pm10_ugm3",
+            "selected": false
+          },
+          {
+            "text": "Soil pH",
+            "value": "ph",
+            "selected": false
+          },
+          {
+            "text": "EC conductivity (dS/m)",
+            "value": "ec_dsm",
+            "selected": false
+          },
+          {
+            "text": "Nitrogen N (mg/kg)",
+            "value": "nitrogen_mgkg",
+            "selected": false
+          },
+          {
+            "text": "Phosphorus P (mg/kg)",
+            "value": "phosphorus_mgkg",
+            "selected": false
+          },
+          {
+            "text": "Potassium K (mg/kg)",
+            "value": "potassium_mgkg",
+            "selected": false
+          },
+          {
+            "text": "Soil temperature (°C)",
+            "value": "soil_temperature_c",
+            "selected": false
+          }
+        ],
+        "current": {
+          "selected": true,
+          "text": "Soil moisture (%)",
+          "value": "soil_moisture_pct"
+        },
+        "includeAll": false,
+        "multi": false,
+        "hide": 0,
+        "skipUrlSync": false
+      }
+    ]
+  },
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Smart Farm: nodes map",
+  "uid": "smartfarm-map",
+  "version": 1,
+  "weekStart": ""
+}
