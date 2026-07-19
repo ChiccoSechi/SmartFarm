@@ -1,0 +1,3 @@
+# Webhook dependencies (app.py): flask = HTTP micro-framework, influxdb-client = Flux queries on the "alerts" bucket.
+flask>=3.0
+influxdb-client>=1.36.0
