@@ -10,6 +10,8 @@
   <img alt="Docker" src="https://img.shields.io/badge/Docker%20Compose-orchestrated-2496ED?logo=docker&logoColor=white">
 </p>
 
+![Demo](docs/SmartFarm.gif)
+
 A real-time **data stream pipeline** for a smart farm. Simulated IoT sensors publish
 readings over MQTT; the pipeline stores them, detects anomalies inside the database, and
 visualizes everything on interactive dashboards. The whole stack runs in Docker and starts
